@@ -142,6 +142,10 @@ def recepcionar(codigos, dnis, nombres, tramites, folios, fechas, estados,
 
     cargo_recepcion(codigo, dni, nombre, mapa[opcion], num_folios, fecha,
                     tipo, requisitos_txt)
+    guardar_expedientes(codigos, dnis, nombres, tramites, folios, fechas, estados,
+                        tipos_persona, rucs, direcciones, celulares, correos,
+                        firmantes, requisitos, citas)
+
 
 def consultar(codigos, dnis, nombres, tramites, folios, fechas, estados,
               tipos_persona, rucs, direcciones, celulares, correos,
