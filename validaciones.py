@@ -1,40 +1,55 @@
-# ---------- VALIDACIONES ----------
+# ============================================================
+#  VALIDACIONES - MESA DE PARTES DIGITAL (CHORRILLOS)
+# ============================================================
+
+import re
+from datetime import datetime
 
 LETRAS = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ"
 
+# ---------- 1. IDENTIDAD Y DATOS PERSONALES ----------
+
 def validar_dni(dni):
+    """8 dígitos numéricos, solo ASCII."""
     return dni.isascii() and dni.isdigit() and len(dni) == 8
 
 def validar_ruc(ruc):
+    """11 dígitos numéricos, solo ASCII."""
     return ruc.isascii() and ruc.isdigit() and len(ruc) == 11
 
 def validar_nombre(nombre):
-    # Solo letras (con tildes y ñ) y espacios entre palabras. Sin números ni símbolos.
+    """Mínimo 3 caracteres, solo letras (con tildes y ñ) y espacios simples."""
     n = nombre.strip()
     return len(n) >= 3 and re.fullmatch(rf"[{LETRAS}]+( [{LETRAS}]+)*", n) is not None
 
 def validar_razon_social(razon):
-    # Letras, números y signos propios de una empresa (S.A.C., E.I.R.L., &, -)
+    """Mínimo 3 caracteres, letras/números y . , & ' - , con al menos una letra."""
     r = razon.strip()
     return (len(r) >= 3
             and re.fullmatch(rf"[{LETRAS}0-9 .,&'\-]+", r) is not None
             and re.search(rf"[{LETRAS}]", r) is not None)
 
 def validar_direccion(direccion):
-    # Letras, números y signos propios de una dirección (Av. Los Pinos #123, Mz. A-5)
+    """Mínimo 5 caracteres, letras/números y . , # ° / - , con al menos una letra."""
     d = direccion.strip()
     return (len(d) >= 5
             and re.fullmatch(rf"[{LETRAS}0-9 .,#°/\-]+", d) is not None
             and re.search(rf"[{LETRAS}]", d) is not None)
 
 def validar_correo(correo):
+    """Estructura usuario@dominio.ext con extensión de 2+ letras."""
     return re.fullmatch(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}",
                         correo) is not None
 
 def validar_celular(celular):
-    # 9 dígitos y los celulares en Perú empiezan con 9
+    """9 dígitos y empieza con 9 (celulares en Perú)."""
     return (celular.isascii() and celular.isdigit()
             and len(celular) == 9 and celular.startswith("9"))
+
+# ---------- 2. CITA: FECHA Y HORA ----------
+
+HORA_APERTURA = datetime.strptime("08:00 AM", "%I:%M %p").time()
+HORA_CIERRE = datetime.strptime("10:00 PM", "%I:%M %p").time()
 
 def validar_fecha_cita(fecha_txt):
     """Devuelve None si es válida, o el mensaje de error."""
@@ -49,14 +64,6 @@ def validar_fecha_cita(fecha_txt):
     if fecha.date() < datetime.now().date():
         return "no se aceptan fechas pasadas."
     return None
-
-HORA_APERTURA = datetime.strptime("08:00 AM", "%I:%M %p").time()
-HORA_CIERRE = datetime.strptime("10:00 PM", "%I:%M %p").time()
-
-def formatear_hora_12(dt):
-    """Devuelve la hora en formato 12 horas: 08:30 AM / 10:00 PM."""
-    h = dt.hour % 12 or 12
-    return f"{h:02d}:{dt.minute:02d} {'AM' if dt.hour < 12 else 'PM'}"
 
 def convertir_hora_12(hora_txt):
     """Convierte 'hh:mm AM/PM' en datetime. Devuelve None si no es válida."""
@@ -84,6 +91,68 @@ def validar_hora_cita(hora_txt, fecha_txt):
         return "la hora indicada ya pasó."
     return None
 
-def generar_codigo(codigos):
-    anio = datetime.now().year
-    return f"{anio}-{len(codigos) + 1:05d}-MCH"
+# ---------- 3. VALIDACIONES DENTRO DE recepcionar() ----------
+
+# Tipo de solicitante: solo "1" o "2"
+if tipo_op not in ("1", "2"):
+    print("  >> ERROR: tipo de solicitante no válido.")
+    return
+
+# Tipo de trámite: debe estar en el diccionario
+mapa = {"1": "Licencia de funcionamiento",
+        "2": "ITSE",
+        "3": "Solicitud de vecino"}
+if opcion not in mapa:
+    print("  >> ERROR: tipo de trámite no válido.")
+    return
+
+# Número de folios: dígitos y mayor a 0
+if not (num_folios.isascii() and num_folios.isdigit()) or int(num_folios) <= 0:
+    print("  >> ERROR: los folios deben ser un número mayor a 0.")
+    return
+
+# Requisitos S/N: cada respuesta debe ser exactamente S o N
+resp = input(f"    {texto} (S/N): ").strip().upper()
+if resp not in ("S", "N"):
+    print("  >> ERROR: responda únicamente S o N.")
+    return
+
+# ---------- 4. REGLAS DE NEGOCIO DE anular() ----------
+
+# 1. Trámite cancelado / expediente anulado
+if estados[i] in ("CANCELADO", "ANULADO"):
+    motivos.append(f"El expediente ya está en estado {estados[i]}.")
+
+# 2. Documento faltante
+obligatorios = ["solicitud", "formato", "sello"]
+for doc in obligatorios:
+    if doc not in requisitos[i].split(", "):
+        motivos.append(f"Falta el documento obligatorio: {doc}.")
+
+# 3. Datos inválidos
+if not dnis[i].isdigit() or len(dnis[i]) not in (8, 11):
+    motivos.append("El documento (DNI/RUC) no es válido.")
+
+# 4. Duplicación de datos
+duplicados = [c for c in codigos if c == buscado]
+if len(duplicados) > 1:
+    motivos.append("Ya existe un expediente con ese número (duplicado).")
+
+# 5. Cambio de destino
+destinos_validos = ["Chorrillos", "Miraflores", "San Isidro"]
+if "Chorrillos" not in destinos_validos:
+    motivos.append("El destino no es válido o cambió.")
+
+# 6. Rechazo / devolución
+if estados[i] == "RECHAZADO":
+    motivos.append("El expediente fue rechazado o devuelto por la municipalidad.")
+
+# 7. Tiempo límite vencido (24 horas)
+fecha_envio = datetime.strptime(fechas[i], "%d/%m/%Y %I:%M %p")
+limite = fecha_envio + timedelta(hours=24)
+if datetime.now() > limite:
+    motivos.append("Pasó el tiempo límite de 24 horas sin confirmación.")
+
+# 8. Incumplimiento de requisitos obligatorios
+if requisitos[i] == "NINGUNO":
+    motivos.append("El expediente no tiene ningún requisito adjunto")
